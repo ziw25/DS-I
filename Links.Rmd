@@ -1,0 +1,14 @@
+---
+title: "Shinyapp - Medical Data"
+author: "Ziwen Zhang"
+date: "2022-11-11"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+GitHub Repository link: https://github.com/ziiiwenn/DataScienceI_Shinyapp.git
+
+Shinyapp.io link : https://ziiiwenn2022.shinyapps.io/medicaldata/

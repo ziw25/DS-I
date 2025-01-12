@@ -1,0 +1,292 @@
+---
+title: 'Data Challeng 5: Clustering Foods'
+author: "Ziwen Zhang"
+date: "2022-12-04"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# load in libraries
+library(tidyverse)
+library(GGally)
+library(plotly)
+```
+
+# Loading/Cleaning Data and Exploratory Analysis
+```{r}
+# read in the data
+nndb_flat <- read.csv("nndb_flat.csv")
+
+# filter the data to contain only food groups with limited variables
+nndb <- nndb_flat %>%
+  filter(FoodGroup %in% c("Vegetables and Vegetable Products", "Beef Products", "Sweets")) %>% 
+  select("Energy_kcal" : "Zinc_mg")
+
+# examine the correlation among the variables
+ggcorr(nndb)
+```
+
+According to this correlation plot, high correlations can be observed among Folate_mcg, Thiamin_mg, Niacin_mg, and Riboflavin_mg. Other high positive correlations include VitA_mcg and Manganese_mg, Protein_g and Zinc_mg etc.
+
+# Performing PCA
+```{r}
+# scale the data
+nndb_scaled <- scale(nndb)
+
+# perform PCA on the data
+pca_nndb <- prcomp(nndb_scaled, 
+                   center = FALSE, 
+                   scale. = FALSE)
+
+summary(pca_nndb)
+
+# figure out how many components we need
+var_explained_df <- data.frame(PC = 1:23, 
+                               var_explained = summary(pca_nndb)$importance[3,])
+
+head(var_explained_df)
+
+# draw a scree plot to show the cumulative proportion of the variance explained by each PC
+var_explained_df %>%
+  ggplot(aes(x = PC, 
+             y = var_explained, 
+             group = 1)) +
+  geom_point() + 
+  geom_line() + 
+  labs(title="Scree plot: PCA",
+       y = 'Cumulative proportion of variance explained',
+       x = '')
+
+# make 3 separate plots for the loadings of the first 3 PCs for all of the variables
+
+# plot 1
+pca_nndb_loadings1 <- as.data.frame(pca_nndb$rotation) %>% 
+  select(PC1) %>% 
+  mutate(variable = rownames(pca_nndb$rotation)) %>%
+  rename(loadings = PC1) %>%
+  arrange(desc(abs(loadings)))
+
+ggplot(pca_nndb_loadings1, 
+       aes(x = reorder(variable, 
+                       abs(loadings)), 
+           y = loadings)) + 
+  geom_bar(stat = 'identity') + 
+  labs(x = "Variable",
+       y = "Loadings", 
+       title = "The loadings for PC1") + 
+  theme(axis.text.x = element_text(angle = 45, 
+                                   hjust = 1))
+
+# plot 2
+pca_nndb_loadings2 <- as.data.frame(pca_nndb$rotation) %>% 
+  select(PC2) %>% 
+  mutate(variable = rownames(pca_nndb$rotation)) %>%
+  rename(loadings = PC2) %>%
+  arrange(desc(abs(loadings)))
+
+ggplot(pca_nndb_loadings2, 
+       aes(x = reorder(variable, 
+                       abs(loadings)), 
+           y = loadings)) + 
+  geom_bar(stat = 'identity') + 
+  labs(x = "Variable",
+       y = "Loadings", 
+       title = "The loadings for PC2") + 
+  theme(axis.text.x = element_text(angle = 45, 
+                                   hjust = 1))
+
+# plot 3
+pca_nndb_loadings3 <- as.data.frame(pca_nndb$rotation) %>% 
+  select(PC3) %>% 
+  mutate(variable = rownames(pca_nndb$rotation)) %>%
+  rename(loadings = PC3) %>%
+  arrange(desc(abs(loadings)))
+
+ggplot(pca_nndb_loadings3, 
+       aes(x = reorder(variable, 
+                       abs(loadings)), 
+           y = loadings)) + 
+  geom_bar(stat = 'identity') + 
+  labs(x = "Variable",
+       y = "Loadings", 
+       title = "The loadings for PC1") + 
+  theme(axis.text.x = element_text(angle = 45, 
+                                   hjust = 1))
+
+# calculate pca scores
+nndb2 <- nndb_flat %>%
+  filter(FoodGroup %in% c("Vegetables and Vegetable Products", "Beef Products", "Sweets")) %>% 
+  select("Energy_kcal" : "Zinc_mg", FoodGroup)
+
+pca_scores <- as.data.frame(pca_nndb$x)
+
+pca_scores <- pca_scores %>% 
+  mutate(Foodgroup = nndb2$FoodGroup)
+
+head(pca_scores)
+
+# PC1 versus PC2
+plot1 <- ggplot(pca_scores, 
+                aes(x = PC1, 
+                    y = PC2, 
+                    col = Foodgroup)) + 
+  geom_point() + 
+  labs(title = "PC1 versus PC2")
+ggplotly(plot1)
+
+# PC1 versus PC3
+plot2 <- ggplot(pca_scores, 
+                aes(x = PC1, 
+                    y = PC3, 
+                    col = Foodgroup)) + 
+  geom_point() + 
+  labs(title = "PC1 versus PC3")
+ggplotly(plot2)
+
+# PC2 versus PC3
+plot3 <- ggplot(pca_scores, 
+                aes(x = PC2, 
+                    y = PC3, 
+                    col = Foodgroup)) + 
+  geom_point() +
+  labs(title = "PC2 versus PC3")
+ggplotly(plot3)
+```
+
+The Vegetables and Vegetable Products is the outlier.
+
+# Identify Outlier and Performing PCA Again
+```{r}
+nndb <- nndb_flat %>%
+  filter(FoodGroup %in% c("Vegetables and Vegetable Products", "Beef Products", "Sweets")) %>% 
+  select("Energy_kcal" : "Zinc_mg") %>%
+  slice(-c(2108))
+
+# scale the data
+nndb_scaled <- scale(nndb)
+
+# perform PCA on the data
+pca_nndb <- prcomp(nndb_scaled, 
+                   center = FALSE, 
+                   scale. = FALSE)
+
+summary(pca_nndb)
+
+# figure out how many components we need
+var_explained_df <- data.frame(PC = 1:23, 
+                               var_explained = summary(pca_nndb)$importance[3,])
+
+head(var_explained_df)
+
+# draw a scree plot to show the cumulative proportion of the variance explained by each PC
+var_explained_df %>%
+  ggplot(aes(x = PC, 
+             y = var_explained, 
+             group = 1)) +
+  geom_point() + 
+  geom_line() + 
+  labs(title="Scree plot: PCA",
+       y = 'Cumulative proportion of variance explained',
+       x = '')
+
+# make 3 separate plots for the loadings of the first 3 PCs for all of the variables
+
+# plot 1
+pca_nndb_loadings1 <- as.data.frame(pca_nndb$rotation) %>% 
+  select(PC1) %>% 
+  mutate(variable = rownames(pca_nndb$rotation)) %>%
+  rename(loadings = PC1) %>%
+  arrange(desc(abs(loadings)))
+
+ggplot(pca_nndb_loadings1, 
+       aes(x = reorder(variable, 
+                       abs(loadings)), 
+           y = loadings)) + 
+  geom_bar(stat = 'identity') + 
+  labs(x = "Variable",
+       y = "Loadings", 
+       title = "The loadings for PC1") + 
+  theme(axis.text.x = element_text(angle = 45, 
+                                   hjust = 1))
+
+# plot 2
+pca_nndb_loadings2 <- as.data.frame(pca_nndb$rotation) %>% 
+  select(PC2) %>% 
+  mutate(variable = rownames(pca_nndb$rotation)) %>%
+  rename(loadings = PC2) %>%
+  arrange(desc(abs(loadings)))
+
+ggplot(pca_nndb_loadings2, 
+       aes(x = reorder(variable, 
+                       abs(loadings)), 
+           y = loadings)) + 
+  geom_bar(stat = 'identity') +
+  labs(x = "Variable",
+       y = "Loadings", 
+       title = "The loadings for PC2") + 
+  theme(axis.text.x = element_text(angle = 45, 
+                                   hjust = 1))
+
+# plot 3
+pca_nndb_loadings3 <- as.data.frame(pca_nndb$rotation) %>% 
+  select(PC3) %>% 
+  mutate(variable = rownames(pca_nndb$rotation)) %>%
+  rename(loadings = PC3) %>%
+  arrange(desc(abs(loadings)))
+
+ggplot(pca_nndb_loadings3, 
+       aes(x = reorder(variable, 
+                       abs(loadings)), 
+           y = loadings)) + 
+  geom_bar(stat = 'identity') + 
+  labs(x = "Variable",
+       y = "Loadings", 
+       title = "The loadings for PC3") + 
+  theme(axis.text.x = element_text(angle = 45, 
+                                   hjust = 1))
+# calculate pca scores
+nndb2 <- nndb_flat %>%
+  filter(FoodGroup %in% c("Vegetables and Vegetable Products", "Beef Products", "Sweets")) %>% 
+  select("Energy_kcal" : "Zinc_mg", FoodGroup) %>%
+  slice(-c(2108))
+
+pca_scores <- as.data.frame(pca_nndb$x)
+
+pca_scores <- pca_scores %>% 
+  mutate(Foodgroup = nndb2$FoodGroup)
+
+head(pca_scores)
+
+# PC1 versus PC2
+plot1 <- ggplot(pca_scores, 
+                aes(x = PC1, 
+                    y = PC2, 
+                    col = Foodgroup)) + 
+  geom_point() + 
+  labs(title = "PC1 versus PC2")
+ggplotly(plot1)
+
+# PC1 versus PC3
+plot2 <- ggplot(pca_scores, 
+                aes(x = PC1, 
+                    y = PC3, 
+                    col = Foodgroup)) + 
+  geom_point() + 
+  labs(title = "PC1 versus PC3")
+ggplotly(plot2)
+
+# PC2 versus PC3
+plot3 <- ggplot(pca_scores, 
+                aes(x = PC2, 
+                    y = PC3, 
+                    col = Foodgroup)) + 
+  geom_point() + 
+  labs(title = "PC2 versus PC3")
+ggplotly(plot3)
+```
+
+Comments: After removing the outlier, the loadings for PC2 changed the most compared to PC1 and PC3. This is because the dataset changes the most variance towards the direction of PC2 after removing the outlier.
+
+Description: According to the plots of the scores, the three food groups can be distinguished better after removing the outlier. Loadings of the PCs represent the weight of each variable on the corresponding directions. Since removing the outlier changes the loadings for PCs, it is reasonable to see the plots of the scores change as well.

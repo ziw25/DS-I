@@ -1,0 +1,137 @@
+---
+title: 'Data Challenge 1: Daily Cow Visualizations'
+author: "Ziwen Zhang"
+date: "2022-09-27"
+output: 
+  html_document:
+    toc: true
+    toc_depth: 4
+    toc_float: true
+    fig_height: 4.5
+    fig_width: 7.0
+  pdf_document:
+    fig_height: 3.5
+    fig_width: 6.0
+  word_document:
+    toc: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+### load in the required libraries 
+```{r}
+library(readr)
+library(tidyverse)
+library(here)
+```
+
+### read in the data
+```{r}
+state_milk_production <- read.csv("D:/Cornell/Data_Science_I/DataChallenges/A1/data/state_milk_production.csv")
+clean_cheese <- read.csv("D:/Cornell/Data_Science_I/DataChallenges/A1/data/clean_cheese.csv")
+fluid_milk_sales <- read.csv("D:/Cornell/Data_Science_I/DataChallenges/A1/data/fluid_milk_sales.csv")
+milk_products_facts <- read.csv("D:/Cornell/Data_Science_I/DataChallenges/A1/data/milk_products_facts.csv")
+milkcow_facts <- read.csv("D:/Cornell/Data_Science_I/DataChallenges/A1/data/milkcow_facts.csv")
+```
+
+### disable scientific notation
+```{r}
+options(scipen = 999)
+```
+
+## Figure 1
+```{r}
+## make a scatter plot to show the relationship between milk production and number of milk cows
+ggplot(data = milkcow_facts, ## initialize ggplot object
+            aes(y = milk_production_lbs / 1000000, 
+                x = avg_milk_cow_number / 1000000)) + ## scale to millions
+  geom_point(aes(color = year)) + ## color the point by year
+  labs(y = 'Milk production (in millions of pounds)',
+       x = 'Number of milk cows (in millions)', ## label x and y axis
+       title = 'Number of milk cows and milk production', ## add title
+       color = "Year") ## relabel the legend
+```
+
+This scatter plot shows the relationships between number of milk cows and milk production over time. In early years, the milk production is low even if the number of milk cows is large. With time passes, milk production became higher and the number of cows became smaller. After late 1990s, the number of milk cows became relatively stable whereas the milk production significantly increased, indicating an improved of milk production efficiency.
+
+## Figure 2
+```{r}
+## make a line plot to show the total production of milk by year in each region
+state_milk_production %>% 
+  group_by(region, 
+           year) %>%
+  summarise(total_production_of_milk = sum(milk_produced)) %>% ## find the total production by region in each year
+  ggplot(aes(x = year, ## initialize ggplot object
+             y = total_production_of_milk / 1000000)) + ## scale to millions
+  geom_line(aes(color = region)) + ## make line plot and distinguish the color by region
+  facet_wrap(~region,
+             ncol = 4) + ## facet the plot by region
+  labs(x = 'Year', 
+       y = 'Total production of milk (in millions of pounds)', ## label x and y axis
+       title= 'The total production of milk each year in each region') + ## add a title
+  theme(legend.position = 'none') ## remove the legend
+
+```
+
+This group of line plots shows the total production of milk over time in each region. Lake States has relatively higher milk production during the whole period of time among the overall 10 regions, whereas Delta States, Appalachian, Northern Plains, Southeast and Southern Plains have lower milk production over time. Mountain and Pacific regions show a significant increasing of milk production with time, but the milk production in Corn Belt and Northeast region has a flat trend over time.
+
+## Figure 3
+```{r}
+## make a line plot to show the trend of milk product sales with time by milk types
+fluid_milk_sales %>%
+  filter(milk_type != "Total Production") %>% ## exclude the category "Total Production"
+  ggplot(aes(x = year, ## initialize ggplot object
+             y = pounds)) + 
+  geom_line(aes(color = milk_type)) + ## make a line plot and distinguish the line colors by milk types
+  scale_y_continuous(trans = "log10") + ## scale y axis using log10
+  labs(x = "Time",
+       y = "Pounds of product (log10)", ## label x and y axis
+       title = "Milk products sales over time by milk types", ## add a title
+       color = "Milk types") ## label the legend
+```
+
+This line graph shows milk products sales over time by milk types. Whole milk and reduced fat (2%) milk have higher sales than the others, and the eggnog type has the lowest sales over the whole period of time. Flavored (Not Whole) and Low fat milk (1%) show a increasing trend on sales over time, whereas Buttermilk and Flavored (Whole) show a decreasing trend on sales over time. Skim milk reached its sale peak on late 1990s.
+
+## Figure 4
+```{r}
+## create a new data frame
+clean_cheese_long <- clean_cheese %>%
+  select("Year":"Foods.and.spreads") %>% ## remove all of the total variables
+  pivot_longer(!Year,
+               names_to = "Cheese_Category",
+               values_to = "Pounds") ## change the data frame to long format
+
+clean_cheese_long %>%
+  ggplot(aes(x = Year, ## initialize ggplot object
+             y = Pounds, 
+             fill = Cheese_Category)) + ## distinguish the types of cheeses using different color
+  geom_bar(stat = "identity", ## the heights of the bars represent values in the data
+           position = "stack") + ## make the bar plots stacked
+  labs(x = "Time",
+       y = "Consumed cheese (pounds)", ## label the x and y axis
+       title = "Pounds of cheese consumed over time by cheese types", ## add a title
+       fill = "Cheese Category") + ## relabel the legend
+  scale_fill_brewer(palette = "Spectral") ## change color using RColorBrewer palette
+```
+
+This bar plot shows pounds of cheese consumed over time by cheese types. The overall consumed cheese increases over time, starting from less than 20 pounds in 1970s to more than 40 pounds in 2010s. Cheddar cheese has the highest consumption over time, indicating that this type of cheese is popular. Mozzarella cheese became increasingly popular with time because its consumption increases significantly over time. Similar trend of increasing consumption can also be seen on Cream and Neufchatel cheese, other Italian, other American and other dairy cheese, whereas Foods and spreads as well as processed cheese have relatively stable consumption over time. Among all categories of cheese, Muenster has always the lowest consumption over time.
+
+## Figure 5
+```{r}
+## create a new data frame by inner join two data frames
+fluid_milk_consumption_price <- inner_join(milk_products_facts,
+                                           milkcow_facts,
+                                           by = c("year" = "year")) ## join the two data frames by the column "year" in both data frames
+
+## make a scatter plot to show the relationship between milk consumption and milk price
+fluid_milk_consumption_price %>% 
+  ggplot(aes(x = fluid_milk, ## initialize ggplot object
+             y = avg_price_milk)) + 
+  geom_point(aes(color = year)) + ## make the scatter plot and color the points by year
+  labs(x = "Average milk consumption in pounds per person",
+       y = "Average milk price (dollars per pound)", ## label x and y axis
+       title = "Average milk price versus average milk consumption with time") ## add a title 
+```
+
+This scatter plot shows average milk price versus average milk consumption per person with time. There is a trend shows that as the milk price increases with time, whereas the average milk consumption per person decreases with time. There is a negative relationship between the average milk price and the average milk consumption per person.

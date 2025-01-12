@@ -1,0 +1,94 @@
+---
+title: 'Data Challenge 3: Coffee Ratings Data'
+author: "Ziwen Zhang"
+date: "2022-10-22"
+output: 
+  html_document:
+    toc: true
+    toc_depth: 4
+    toc_float: true
+    fig_height: 7
+    fig_width: 10
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r warning = FALSE, message=FALSE,}
+## load in the libraries 
+library(readr)
+library(knitr)
+library(tidyverse)
+library(Hmisc)
+
+## read in the data 
+coffee_ratings <- read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-07-07/coffee_ratings.csv')
+```
+
+## Problem 1
+```{r warning = FALSE, message=FALSE, results='asis'}
+# Write a function that returns the mean and standard deviation of a vector
+func1 <- function(x){
+  mean = mean(x) %>% round(3) # calculate mean
+  sd = sd(x) %>% round(3) # calculate standard deviation
+  paste0(mean, " (", sd, ")")
+}
+
+# Write a function that returns the mean and standard deviation of the aroma through moisture columns over a specific grouping as a table
+func2 <- function(x){
+  df <- coffee_ratings %>%
+    rename(category = all_of(x)) %>% # select variables from character vectors
+    group_by(category) %>% # group by a specific group x 
+    summarise(across(aroma:moisture, func1)) 
+  names(df)[1] <- gsub("_", " ", x) # remove "_" in column names
+  names(df) <- str_to_title(gsub("_", " ", names(df))) # capitalize column names
+    kable(df) # make a table
+}
+
+# Clean the coffee ratings data frame
+coffee_ratings <- coffee_ratings %>%
+  mutate(altitude_mean_meters = ifelse(altitude_mean_meters > 5000, NA, altitude_mean_meters)) %>% # put any impossible values as missing
+  mutate(altitude_mean_meters = cut2(altitude_mean_meters, g=5)) %>% # binning the mean altitude meters variable into 5 groups
+  mutate(species = ifelse(is.na(species), "Missing", species),
+         country_of_origin = case_when(is.na(country_of_origin) ~ 'Missing', 
+          country_of_origin == 'Cote d?Ivoire'  ~ 'Ivory Coast', TRUE ~ country_of_origin), # remove ? signs
+         altitude_mean_meters = ifelse(is.na(altitude_mean_meters), "Missing", as.character(altitude_mean_meters)) 
+         ) # putting a "Missing" for missing values in species, country_of_origin and altitude_mean_meters columns.
+
+
+# calculate tables for the three groups
+map(c("species", "country_of_origin", "altitude_mean_meters"), func2)
+
+```
+
+
+## Problem 2
+```{r}
+# Write a function that plots two variables from a data frame and colors by group
+func3 <- function(x, y, z){
+  coffee_ratings %>%
+    filter(aroma > 0) %>% # remove the outlier
+    rename(xvar = all_of(x),
+           yvar = all_of(y),
+           zvar = all_of(z)) %>% # select variables from character vectors
+    ggplot(aes(xvar, yvar, color = zvar)) + # initialize ggplot
+    geom_jitter(height = 0.4, width = 0.6, alpha = 0.7, show.legend = TRUE) + # handling overlapping of points using geom_jitter
+    labs(x = x, # label the x-axis
+         y = y, # label the y-axis
+         title = paste("Scatterplot of", y, "versus", x, "by", str_to_title(gsub("_", " ", z))), # make a title
+         color = z) + # color by group
+    scale_color_discrete(name = str_to_title(gsub("_", " ", z))) # relabel the legend title
+}
+
+# make a dataframe
+dat <- tibble(x = c("aroma", "balance"),
+              y = c("flavor", "body"),
+              z = c("species", "altitude_mean_meters"))
+
+# iterate over a list of function arguments to produce two plots
+pmap(dat, func3)
+
+
+```
+

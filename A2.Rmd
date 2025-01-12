@@ -1,0 +1,161 @@
+---
+title: "Data Challenge 2"
+author: "Ziwen Zhang"
+date: "2022-10-11"
+output: 
+  html_document:
+    toc: true
+    toc_depth: 4
+    toc_float: true
+    fig_height: 7
+    fig_width: 10
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### load in the required libraries
+```{r}
+library(tidyverse)
+library(readxl)
+library(janitor)
+library(stringr)
+library(lubridate)
+library(patchwork)
+library(hrbrthemes)
+```
+
+## Problem 1
+```{r}
+Mr_Trash_Wheel<- read_excel("D:/Cornell/Data_Science_I/DataChallenges/A2/Trash-Wheel-Collection-Totals-8-6-19.xlsx", 
+    sheet = "Mr. Trash Wheel") ## load in data
+
+wheel1 <- Mr_Trash_Wheel %>%
+  clean_names() %>% ##clean the column names
+  filter(dumpster != "NA") %>% ## omit rows without dumpster-specific data
+  select(-x15, -x16, -x17, -homes_powered) %>% ## remove all columns that are not needed
+  mutate(wheel = "Mr. Trash Wheel") ## identifying data from Mr. Trash Wheel
+
+Professor_Trash_Wheel<- read_excel("D:/Cornell/Data_Science_I/DataChallenges/A2/Trash-Wheel-Collection-Totals-8-6-19.xlsx", 
+    sheet = "Professor Trash Wheel") ##load in data
+
+wheel2 <- Professor_Trash_Wheel %>%
+  clean_names() %>% ## clean the column names
+  filter(dumpster != "NA") %>% ##omit rows without dumpster-specific data
+  mutate(wheel = "Professor Trash Wheel") ## identifying data from Professor Trash Wheel
+
+Captain_Trash_Wheel <- read_excel("D:/Cornell/Data_Science_I/DataChallenges/A2/Trash-Wheel-Collection-Totals-8-6-19.xlsx", 
+    sheet = "Captain Trash Wheel") ## load in data
+
+wheel3 <- Captain_Trash_Wheel %>%
+  clean_names() %>% ## clean the column names
+  filter(dumpster != "NA") %>% ## omit rows without dumpster-specific data
+  mutate(wheel = "Captain Trash Wheel") ## identifying data from Captain Trash Wheel
+
+all_trash_wheels <- bind_rows(wheel1, wheel2, wheel3) %>%
+  pivot_longer(cols = c("plastic_bottles", "polystyrene", "cigarette_butts", "glass_bottles", "grocery_bags", "chip_bags", "sports_balls", "plastic_bags"),
+               names_to = "trash_type", 
+               values_to = "number") %>% ## bind the three data frames together into a data frame
+  mutate(trash_type = str_replace(trash_type, "_", " ")) %>% ## remove "_"
+  mutate(trash_type = str_to_title(trash_type)) ## Capitalize
+
+all_trash_wheels_totals_June_2018 <- all_trash_wheels %>%
+  filter(month == "June", 
+         year == '2018') %>% ## Filtering the data for only June 2018
+  group_by(wheel, 
+           trash_type) %>% ## group data by wheel and trash_type
+  summarise(total_number = sum(number)) ## calculate the total number of each trash item collected by each trash wheel for June 2018
+
+## make a faceted bar plot (by trash type) of the amount of trash (x-axis) collected by each wheel (y-axis): 
+all_trash_wheels_totals_June_2018 %>%
+  ggplot(aes(x = total_number,
+             y = wheel,
+             fill = trash_type)) + ##initialize plot object
+  geom_bar(stat = "identity") + ## make a bar plot
+  facet_wrap(~trash_type, 
+             nrow = 3, 
+             scale = "free_x")+ ## facet the plot by trash type
+  labs(x = "Total number of trash",
+       y = "Wheel Type", ## label x and y axis
+       title = "Bar plot of total number of each trash item collected by each trash wheel for June 2018", ## add a title
+       fill = "Trash Type") ## relabel the legend
+
+```
+
+
+## Problem 2
+```{r}
+snp <- read_csv("D:/Cornell/Data_Science_I/DataChallenges/A2/snp.csv")
+unemployment <- read_csv("D:/Cornell/Data_Science_I/DataChallenges/A2/unemployment.csv") ## load in data
+
+snp <- snp %>%
+  mutate(newdate = mdy(date)) %>% ## convert the data to a date object "newdate"
+  mutate(newdate = if_else(year(newdate) >= 2050, 
+                           newdate - dyears(100), 
+                           newdate)) ## correct data from 1968 and before
+
+snp <- snp %>%
+  mutate(year = year(newdate)) %>% ## create a new variable "year"
+  mutate(month = month(newdate)) ## create a new variable "month"
+
+
+unemployment <- unemployment %>%
+  pivot_longer(cols = "Jan":"Dec", 
+               names_to = "month", 
+               values_to = "rate") %>% ## convert data into long format
+  mutate(date = paste(month,"01",Year)) %>% ## Create a date column that takes the month and year and indicates the first day of the month
+  mutate(date = mdy(date)) ## reformat the data
+
+## make a plot of both the S&P average and the unemployment rate together
+ggplot() + ## initialize ggplot object
+  geom_line(data = snp, 
+            aes(x=newdate, 
+                y = close/100), ## make a line for S&P data
+            color = "green", ## change color
+            lwd = 1) + ## change line width
+  geom_line(data = unemployment, 
+            aes(x = date, 
+                y = rate), ## make a line for unemployment data
+            color = "red", ## change color
+            lwd = 1) + ## change line width
+  ## custom the Y scales
+  scale_y_continuous(name = "Unemployment Rate (%)", ## features of the first axis
+                     sec.axis = sec_axis(~.*100, 
+                                         name="Average S&P Closing Price")) + ## add a second axis and specify its features
+  labs(x = "Time", 
+       title = "Unemployment Rate and Average Closing Price over time") + 
+  theme(axis.title.y.left = element_text(color = "red", 
+                                         size = 13), ## change the color of left y axis title
+        axis.title.y.right = element_text(color = "green", 
+                                          size = 13)) ## change the color of right y axis title
+```
+
+## Problem 3
+```{r}
+## create snp_average data and change it to the same scale of unemployment data
+snp_average <- data.frame(
+  snp %>%
+    group_by(year, 
+             month) %>% ## group data by year and month
+    summarise(meanclose = mean(close)) %>% ## calculate the mean of close for each month in each year
+    mutate(date = paste(month,"01",year)) %>% ## add the first day to each month
+    mutate(date = mdy(date))) ## reformat the data
+
+## join the unemployment data with snp_average and filter for data after the start of 2000
+full_join(snp_average, unemployment, by = "date") %>% ## join two dataset by date
+  filter(year(date) >= 2000) %>% ## filter years later than 2000
+  ggplot(aes(x = rate, 
+             y = meanclose)) + ## initialize ggplot object
+           geom_point(aes(color = year), 
+                      size = 2)+ ## make a scatter plot 
+  labs(y = 'S & P Closing Price',
+       x = 'Unemployment Rate (%)', ## label x and y axis
+       title = 'S & P Closing Price versus Unemployment Rate after 2000', ## add a title
+       color = "Year") ## color the points with color by year
+```
+
+## Problem 4
+
+In problem 2, the line plot shows the trends of unemployment rate and average closing pricing over time. Over the whole period of time, the unemployment rate fluctuated between around 2.5 and 10, whereas the average S&P closing price increased significantly from 1960s to 2000s and then fluctuated around 1250 then improved to above 2000. 
+In problem 3, the scatter plot shows the relationship between S&P closing price and unemployment rate after 2000 year. There is a negative relationship between the S&P closing price and the unemployment rate. The S&P closing price decreases whereas the unemployment rate increases from 2000 to around 2005. However, the S&P closing price increases after 2010 but the unemployment decreases after 2010.
